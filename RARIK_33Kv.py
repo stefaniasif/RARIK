@@ -2,6 +2,8 @@
 import pandapower as pp
 import pandapower.plotting as pplot
 import matplotlib.pyplot as plt
+import numpy as np
+import code
 
 
 net = pp.create_empty_network()
@@ -72,69 +74,74 @@ pp.create_transformer_from_parameters(
 # Define line parameters
 
 loftlina_66_feal300 = {
-    'r_ohm_per_km': 0.061,  # resistance in ohm per km
-    'x_ohm_per_km': 0.358,   # reactance in ohm per km
-    'c_nf_per_km': 10.28,    # capacitance in nF per km
-    'max_i_ka': 1.140       # maximum current in kA
+    'r_ohm_per_km': 0.061,     # resistance in ohm per km
+    'x_ohm_per_km': 0.358,     # reactance in ohm per km
+    'c_nf_per_km': 10.28,      # capacitance in nF per km
+    'max_i_ka': 1.140          # maximum current in kA
 }
 strengur_33_TXSP_AL_3x1x800 = {
-    'r_ohm_per_km': 0.037,  # resistance in ohm per km
-    'x_ohm_per_km': 0.16,   # reactance in ohm per km
-    'c_nf_per_km': 350,    # capacitance in nF per km
-    'max_i_ka': 0.780       # maximum current in kA    gildi m.v. samskonar streng, má bara keyra 60%-70% af hitaþolsstraum
+    'r_ohm_per_km': 0.037,    # resistance in ohm per km
+    'x_ohm_per_km': 0.16,     # reactance in ohm per km
+    'c_nf_per_km': 350,       # capacitance in nF per km
+    'max_i_ka': 0.780         # maximum current in kA    gildi m.v. samskonar streng, má bara keyra 60%-70% af hitaþolsstraum
 }
 strengur_36_AXAL_1x3x300 = {     # ÞRÍLEIÐARI
-    'r_ohm_per_km': 0.1,  # resistance in ohm per km
-    'x_ohm_per_km': 0.18,   # reactance in ohm per km
-    'c_nf_per_km': 230,    # capacitance in nF per km
-    'max_i_ka': 0.500       # maximum current in kA    gildi m.v. samskonar streng, má bara keyra 60%-70% af hitaþolsstraum
+    'r_ohm_per_km': 0.1,      # resistance in ohm per km
+    'x_ohm_per_km': 0.18,     # reactance in ohm per km
+    'c_nf_per_km': 230,       # capacitance in nF per km
+    'max_i_ka': 0.500         # maximum current in kA    gildi m.v. samskonar streng, má bara keyra 60%-70% af hitaþolsstraum
+}
+strengur_33_TXSP_AL_3x1x1000 = {
+    'r_ohm_per_km' : 0.029,   # resistance in ohm per km
+    'x_ohm_per_km' : 0.15,    # reactance in ohm per km
+    'c_nf_per_km' : 390,      # capacitance in nF per km
+    'max_i_ka' : 0.850        # maximum current in kA    gildi m.v. samskonar streng, má bara keyra 60%-70% af hitaþolsstraum
 }
 
 
 
 Utfaerslur = {
     'Leid_1': { # 1, jarðstrengur í sömu lengd og núverandi tenging, 79.7 km, keyrður á 61% af hitaþolsstraum
-        'lines': [
+        'lines': [  # no-load =  -10.596 Mvar, full-load = 6.423 mvar, eins og rýmdin aukist hraðar en spanið þegar strengurinn lengist
             pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=19.925, **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 1 - 3x1x800"),
             pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=19.925, **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 2 - 3x1x800"),
             pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=19.925, **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 3 - 3x1x800"),
             pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=19.925, **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 4 - 3x1x800")
         ],
-        'shunts':[ # ef gildin á þéttunum eru hækkuð þá lækkar cosphi en launaflsframleiðsla eykst
-            pp.create_shunt(net, bus6, q_mvar= 0*-2.0, p_mw=0, name="Þéttir"),   # negative for capacitive reactive compensation
-            pp.create_shunt(net, bus4, q_mvar= 0.0, p_mw=0, name="Þéttir"),   # of dýrt að sögn Magga að hafa auka spólur á miðri leið
-            pp.create_shunt(net, bus2, q_mvar= 0*-4.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
+        'shunts':[ # lágmarks-útjöfnun til að ná samleitni, 10.436 mvar dregin frá Landsneti, 26 % spennufall
+            pp.create_shunt(net, bus6, q_mvar= -3.0, p_mw=0, name="Þéttir"),   # negative for capacitive reactive compensation
+            pp.create_shunt(net, bus4, q_mvar= 0.0, p_mw=0, name="Shunt"),   # of dýrt að sögn Magga að hafa auka spólur á miðri leið
+            pp.create_shunt(net, bus2, q_mvar= -6.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
         ]   # spólur settar þannig að 2/3 sé í stöð, 1/3 í aðveitustöð Vík
     },
     'Leid_2': { #2,  jarðstrengur sem fylgir þjóðveginum, 76.4km, keyrður á 61% af hitaþolsstraum
-        'lines': [  # LÍTIL LAUNAFLSFRAMLEIÐSLA, KOSTUR FYRIR FLÖKT Í ÁLAGI
+        'lines': [  # no-load = -10.095 mvar,  full-load = 9.024 mvar
             pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=19.1, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 1 - 3x1x800"),
             pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=19.1, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 2 - 3X1X800"),
             pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=19.1, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 3 - 3X1X800"),
             pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=19.1, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 4 - 3X1X800")
         ],
-        'shunts':[
+        'shunts':[ # lágmarks-útjöfnun til að ná samleitni, 17.383 mvar dregin frá Landsneti, 31% spennufall
             pp.create_shunt(net, bus6, q_mvar=-2.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
             pp.create_shunt(net, bus4, q_mvar=0.0, p_mw=0, name="Þéttir"),   # mjög dýrt að hafa auka tengivirki bara f.spólu
-            pp.create_shunt(net, bus3, q_mvar=-4.0, p_mw=0, name="Þéttir")   
+            pp.create_shunt(net, bus2, q_mvar=-3.0, p_mw=0, name="Þéttir")   
         ]   
     },      
-    'Leid_3': {
-        'lines': [  # jarðstrengurinn er þá keyrður á 62% af hitaþolsstraum
+    'Leid_3': {     # jarðstrengurinn er þá keyrður á 62% af hitaþolsstraum
+        'lines': [  # no-load = -7.255 mvar, full-load = 7.184 mvar, 17% spennufall
             pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=29.7, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 1 - 3X1X800"),
             pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=17.3, **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 2 - 3X1X800"),
             pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=23.7, **loftlina_66_feal300, name="Loftlína 1 - 66_feal300"),
             pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=9.0 , **strengur_33_TXSP_AL_3x1x800  , name="Jarðstrengur 3 - 3X1X800")
         ],
-        'shunts':[
-            pp.create_shunt(net, bus6, q_mvar=-6.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
+        'shunts':[ # lágmarks útjöfnun til að ná samleitni
+            pp.create_shunt(net, bus6, q_mvar=-14.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
             pp.create_shunt(net, bus4, q_mvar=0.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
-            pp.create_shunt(net, bus5, q_mvar=0.0, p_mw=0, name="Þéttir"),   # hægt að setja þétti hér til að rétta af spennu/cosphi
-            pp.create_shunt(net, bus3, q_mvar=-4.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
+            pp.create_shunt(net, bus2, q_mvar=-8.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
         ]
     },
-    'Leid_4': {
-        'lines': [  # TVÆR ÞRÍLEIÐARATENGINGAR
+    'Leid_4': {     # TVÆR ÞRÍLEIÐARATENGINGAR
+        'lines': [  # no-load = -13.406 mvar, full-load = -3.995 mvar, 17.4%
             pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=19.1, **strengur_36_AXAL_1x3x300, name="Jarðstrengur 1.1 - þríleiðari"),
             pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=19.1, **strengur_36_AXAL_1x3x300, name="Jarðstrengur 1.2 - þríleiðari"),
             pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=19.1, **strengur_36_AXAL_1x3x300, name="Jarðstrengur 1.3 - þríleiðari"),
@@ -145,22 +152,35 @@ Utfaerslur = {
             pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=19.1, **strengur_36_AXAL_1x3x300, name="Jarðstrengur 2.4 - þríleiðari")
         ],
         'shunts':[
-            pp.create_shunt(net, bus6, q_mvar=-2.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
+            pp.create_shunt(net, bus6, q_mvar=0.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
             pp.create_shunt(net, bus4, q_mvar=0.0, p_mw=0, name="Þéttir"),   # positive for inductive reactive compensation
-            pp.create_shunt(net, bus3, q_mvar=-4.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
+            pp.create_shunt(net, bus2, q_mvar=0.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
         ]   # spólurnar minnka launafl en auka spennufall, cosphi vel innan marka svo þarf ekki spólu
     },
     'Leid_5': {
-        'lines': [
+        'lines': [  # no-load = -3.563 mvar, full-load = 10.658 mvar, útaf loftlínum
             pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=29.7, **loftlina_66_feal300, name="Loftlína 1 - FEAL 1x300"),
             pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=17.3, **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 1 - 3x1x800"),
             pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=23.7, **loftlina_66_feal300, name="Loftlína 2 - FEAL 1x300"),
             pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=9.0 , **strengur_33_TXSP_AL_3x1x800, name="Jarðstrengur 2 - 3x1x800")
         ],
-        'shunts':[ # ef gildin á þéttunum eru hækkuð þá lækkar cosphi en spennan í Vík hækkar upp í 1.13pu, cosphi núna 0.904
-            pp.create_shunt(net, bus6, q_mvar=-8.8, p_mw=0, name="Þéttir"),   # negative for capacitive reactive compensation
-            pp.create_shunt(net, bus4, q_mvar=-1.0, p_mw=0, name="Þéttir"),   # of dýrt að sögn Magga að hafa auka spólur á miðri leið
-            pp.create_shunt(net, bus3, q_mvar=-3.5, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
+        'shunts':[ # minnstu gildi á þéttum til að ná samleitni
+            pp.create_shunt(net, bus6, q_mvar=-16, p_mw=0, name="Þéttir"),   # negative for capacitive reactive compensation
+            pp.create_shunt(net, bus4, q_mvar= 0, p_mw=0, name="Þéttir"),
+            pp.create_shunt(net, bus2, q_mvar=-19, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
+        ]   # þegar ég eyk stærð á þéttum þá lækkar spennan í Vík?
+    },
+    'Leid_6': { # 1, Sama og Leid 1, nema annar strengur
+        'lines': [  # no-load =  -11.922 Mvar, full-load = 6.906 mvar, spennufall 30%, þolir 18MW load (pf 0.95) án þess að fara niður í 10% spennufall
+            pp.create_line_from_parameters(net, from_bus=bus2, to_bus=bus3, length_km=19.925, **strengur_33_TXSP_AL_3x1x1000, name="Jarðstrengur 1 - 3x1x800"),
+            pp.create_line_from_parameters(net, from_bus=bus3, to_bus=bus4, length_km=19.925, **strengur_33_TXSP_AL_3x1x1000, name="Jarðstrengur 2 - 3x1x800"),
+            pp.create_line_from_parameters(net, from_bus=bus4, to_bus=bus5, length_km=19.925, **strengur_33_TXSP_AL_3x1x1000, name="Jarðstrengur 3 - 3x1x800"),
+            pp.create_line_from_parameters(net, from_bus=bus5, to_bus=bus6, length_km=19.925, **strengur_33_TXSP_AL_3x1x1000, name="Jarðstrengur 4 - 3x1x800")
+        ],
+        'shunts':[ # náði samleitni með engri útjöfnun
+            pp.create_shunt(net, bus6, q_mvar= 0.0, p_mw=0, name="Þéttir"),   # negative for capacitive reactive compensation
+            pp.create_shunt(net, bus4, q_mvar= 0.0, p_mw=0, name="Shunt"),   # of dýrt að sögn Magga að hafa auka spólur á miðri leið
+            pp.create_shunt(net, bus2, q_mvar= 0.0, p_mw=0, name="Þéttir")   # positive for inductive reactive compensation
         ]   # spólur settar þannig að 2/3 sé í stöð, 1/3 í aðveitustöð Vík
     }
 }
@@ -187,17 +207,17 @@ activate_leid('Leid_2', activate=False)  # Activate leid_2 (both lines and shunt
 activate_leid('Leid_3', activate=False)  # Activate leid_3 (both lines and shunts)
 activate_leid('Leid_4', activate=False)  # Activate leid_4 (both lines and shunts)
 activate_leid('Leid_5', activate=False)  # Activate leid_5 (both lines and shunts)
+activate_leid('Leid_6', activate=False)  # Activate leid_5 (both lines and shunts)
 
 
-# Create load
-pp.create_load(net, bus6, p_mw=25, q_mvar=0, name="Vík í Mýrdal load")#
+# Create load,  pf = 0.95, q_mvar er þá 8.217 mvar
+pp.create_load(net, bus6, p_mw=25, q_mvar=25*np.tan(np.arccos(0.95)), name="Vík í Mýrdal load")
 
 
 # Create switches
 #sw1 = pp.create_switch(net, bus1, pp.get_element_index(net, "trafo", '132/66 kV Transformer'), et="t", type="LBS", closed=True)
 #sw2 = pp.create_switch(net, bus2, pp.get_element_index(net, "trafo", '132/66 kV Transformer'), et="t", type="LBS", closed=True)
 #sw3 = pp.create_switch(net, bus6, pp.get_element_index(net, "trafo", '66/33 kV Transformer'), et="t", type="LBS", closed=False)
-#sw4 = pp.create_switch(net, bus7, pp.get_element_index(net, "trafo", '66/33 kV Transformer'), et="t", type="LBS", closed=False)
 
 
 pp.runpp(net, numba=False)
@@ -223,7 +243,8 @@ active_line_reactive_losses = active_lines['q_from_mvar'] + active_lines['q_to_m
 print("Reactive power in Active Lines (MVAR):")
 print(active_line_reactive_losses)
 
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
+
 # Total reactive power absorbed or created in the lines
 total_reactive_power = active_line_reactive_losses.sum()
 print(f"Total Reactive Power in Lines: {total_reactive_power:.4f} MVAR")
@@ -243,7 +264,6 @@ print(f"Total Real Power System Losses: {total_losses:.4f} MW")
 print("Bus Voltages:")
 print(net.res_bus.vm_pu)
 
-#import pdb; pdb.set_trace()
 
 #print(net.bus) # show bus table
 #print(net.ext_grid) #show external grid table
@@ -278,3 +298,6 @@ for idx, load in net.load.iterrows():
 # Show plot with legends
 #ax.legend()
 #plt.show()
+
+# Start interactive session to explore values in system
+#code.interact(local=locals())
