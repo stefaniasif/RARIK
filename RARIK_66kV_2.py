@@ -1,4 +1,4 @@
-# RARIK_66Kv_spolurogplott.py
+# RARIK_66Kv_2.py
 import pandapower as pp
 import pandapower.plotting as pplot
 import matplotlib.pyplot as plt
