@@ -205,62 +205,99 @@ def activate_leid(leid_name, activate=True):
 
 
 # Velja leiðir og sett af spólum
-activate_leid('Leid_1', activate=False)  # Activate leid_1 (both lines and shunts)
-activate_leid('Leid_2', activate=True)  # Activate leid_2 (both lines and shunts)
+activate_leid('Leid_1', activate=True)  # Activate leid_1 (both lines and shunts)
+activate_leid('Leid_2', activate=False)  # Activate leid_2 (both lines and shunts)
 activate_leid('Leid_3', activate=False)  # Activate leid_3 (both lines and shunts)
 activate_leid('Leid_4', activate=False)  # Activate leid_4 (both lines and shunts)
 
+# Create load,  pf = 0.95, q_mvar er þá 8.217 mvar
+#pp.create_load(net, bus6, p_mw=25, q_mvar=25 *np.tan(np.arccos(0.95)), name="Vík í Mýrdal load")
+
+
+
+# Plotta launafl sem þarf að útjafna á móti raunhluta álags
+def plot_reactive_power_vs_active_load(net, bus6, pf=0.95):
+    
+    arr = np.arange(0, 25.1, 0.5)  # Counts from 0 to 25 in steps of 0.5
+    launafl = np.zeros_like(arr)
+    cosphi = np.zeros_like(arr)
+
+    for idx, i in enumerate(arr):
+        net.load.drop(net.load.index, inplace=True)  # Remove previous loads
+
+        q_mvar = i * np.tan(np.arccos(pf))
+        pp.create_load(net, bus6, p_mw=i, q_mvar=q_mvar, name="Vík í Mýrdal load")
+        pp.runpp(net)
+
+        launafl[idx] = net.res_bus.loc[0, "q_mvar"]
+        if i == 0:
+            cosphi[idx] = 0.1  # Avoid division by zero
+        else:
+            cosphi[idx] = np.cos(np.arctan(launafl[idx]/i))
+
+    min_cosphi = np.min(cosphi)
+    print(f"Minnsta gildi cosphi: {min_cosphi:.2f}")
+
+    # Plotting
+    plt.figure(figsize=(8, 5))
+    plt.plot(arr, launafl, marker='o', linestyle='-', color='blue')
+    q_value = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
+    plt.text(arr[0], launafl[0], f"    Spóla: {q_value:.1f} Mvar", fontsize=10)
+
+    mask = cosphi < 0.9
+    plt.scatter(arr[mask], launafl[mask], color='red', s=80, label='cos(ϕ) < 0.9')
+
+    plt.title('Launafl sem þarf að útjafna sem fall af raunhluta álags')
+    plt.xlabel('Raunaflshluti álags (P_MW)')
+    plt.ylabel('Launafl (Q_Mvar)')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 
 # Plotta launafl sem þarf að útjafna á móti raunhluta álags og finna hentugar spólustærðir
-arr = np.arange(0, 25.1, 0.5)  # Counts from 0 to 25 in steps of 0.5
-launafl = np.zeros_like(arr)
-cosphi = np.zeros_like(arr)
-for idx, i in enumerate(arr):
-    # Create load,  pf = 0.95, q_mvar er þá 8.217 mvar
-    net.load.drop(net.load.index, inplace=True) # to prevent stacking loads in each step
-    pp.create_load(net, bus6, p_mw=i, q_mvar=i *np.tan(np.arccos(0.95)), name="Vík í Mýrdal load")
-    pp.runpp(net)
-    launafl[idx] = net.res_bus.loc[0,"q_mvar"]  # finnur launafl sem er dregið frá Landsneti eða sent aftur til baka
+def plot_reactive_power_shunt_sizing(net, bus_load, bus_shunt, pf=0.95):
+    plt.figure(figsize=(8, 5))
+    arr = np.arange(0, 25.1, 0.5)
+    launafl = np.zeros_like(arr)
+    cosphi = np.zeros_like(arr)
+    last = 0
 
-    if i == 0:
-        cosphi[idx] = 1.0   # áætlun fyrir 0 MW, ekki hægt að deila með núlli
-        rounded_launafl = np.floor(launafl[idx])         # þannig spólan sé heil tala
-        net.shunt.drop(net.shunt.index, inplace=True)    # to prevent stacking shunts
-        pp.create_shunt(net, bus2, q_mvar= rounded_launafl, p_mw=0, name="Spóla")    # positive for inductive reactive compensation
-        print(f"Spóla sett. Stærð spólu: {rounded_launafl} Mvar. Stærð álags: {i} MW")
+    for idx, i in enumerate(arr):
+        # Create load,  pf = 0.95, q_mvar er þá 8.217 mvar
+        net.load.drop(net.load.index, inplace=True) # to prevent stacking loads in each step
+        pp.create_load(net, bus_load, p_mw=i, q_mvar=i *np.tan(np.arccos(pf)), name="Vík í Mýrdal load")
         pp.runpp(net)
-        launafl[idx] = net.res_bus.loc[0,"q_mvar"]
-    else:
-        cosphi[idx] = np.cos(np.arctan(launafl[idx]/i))
+        launafl[idx] = net.res_bus.loc[0,"q_mvar"]  # finnur launafl sem er dregið frá Landsneti eða sent aftur til baka
 
-    v6 = net.res_bus.vm_pu.at[bus6]
-    # Track the current shunt
-    shunt_idx = net.shunt[net.shunt.bus == bus2].index[0]
-    q_shunt = net.shunt.at[shunt_idx, 'q_mvar']
-    v6_pre = net.res_bus.vm_pu.at[bus6]     # spenna í Vík áður en spólan tikkar inn
-    # Size of shunt at bus 2
-    q_value = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
-    
-    while ((cosphi[idx] < 0.9) or (v6 < 0.9)) and (q_shunt > -20) and (q_value > 0):  # Regla spólu
-        if i < 3:           # þarf að vera, annars festist lykkjan í 0.5 MW
-            q_shunt -= 0.5  # shed 0.5 Mvar per step
+        if i == 0:
+            cosphi[idx] = 1.0                               # áætlun fyrir 0 MW, ekki hægt að deila með núlli
+            rounded_launafl = np.floor(launafl[idx])        # þannig spólan sé heil tala
+            net.shunt.drop(net.shunt.index, inplace=True)   # to prevent stacking shunts
+            pp.create_shunt(net, bus_shunt, q_mvar=rounded_launafl, p_mw=0, name="Spóla")
+            print(f"Spóla sett. Stærð spólu: {rounded_launafl} Mvar. Álag: {i} MW")
+            pp.runpp(net)
+            launafl[idx] = net.res_bus.loc[0, "q_mvar"]
         else:
-            q_shunt -= q_value  # tekur spóluna alveg út og tikkar inn í 0.5 Mvar skrefum þangað til spennufall er undir 3.5%
-        
-        # Minnka gildi á spólu
-        net.shunt.at[shunt_idx, 'q_mvar'] = q_shunt
-        
-        # new values
-        pp.runpp(net)
-        launafl[idx] = net.res_bus.loc[0, "q_mvar"]
-        cosphi[idx] = np.cos(np.arctan(launafl[idx] / i))
-        v6 = net.res_bus.vm_pu.at[bus6]
-        spennubreyting = (v6 - v6_pre)*100
+            cosphi[idx] = np.cos(np.arctan(launafl[idx] / i))
 
-        # passa að spennufall verði ekki meira en 3.5% þegar spólan kemur inn þegar álag minnkar
-        while spennubreyting > 3.5:
-            q_shunt += 0.5
+        v6 = net.res_bus.vm_pu.at[bus6]
+        # Track the current shunt
+        shunt_idx = net.shunt[net.shunt.bus == bus2].index[0]
+        q_shunt = net.shunt.at[shunt_idx, 'q_mvar']
+        v6_pre = net.res_bus.vm_pu.at[bus6]     # spenna í Vík áður en spólan tikkar inn
+        # Size of shunt at bus 2
+        q_value_last = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
+        q_value = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
+
+        while ((cosphi[idx] < 0.9) or (v6 < 0.9)) and (q_shunt > -20) and (q_value > 0):  # Regla spólu
+            if i < 3:           # þarf að vera, annars festist lykkjan í 0.5 MW
+                q_shunt -= 0.5  # shed 0.5 Mvar per step
+            else:
+                q_shunt -= q_value  # tekur spóluna alveg út og tikkar inn í 0.5 Mvar skrefum þangað til spennufall er undir 3.5%
+        
+            # Minnka gildi á spólu
             net.shunt.at[shunt_idx, 'q_mvar'] = q_shunt
 
             # new values
@@ -268,35 +305,49 @@ for idx, i in enumerate(arr):
             launafl[idx] = net.res_bus.loc[0, "q_mvar"]
             cosphi[idx] = np.cos(np.arctan(launafl[idx] / i))
             v6 = net.res_bus.vm_pu.at[bus6]
-            spennubreyting = (v6 - v6_pre)*100
+            spennubreyting = (v6 - v6_pre) * 100
 
-        # Size of shunt at bus 2
-        q_value = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
-        # Prenta ný gildi
-        print(f"Spólu breytt. Stærð spólu: {q_value:.2f} MVAr. Stærð álags: {i} MW. Spenna í Vík: {v6:.2f} pu. Nýtt cosphi:{cosphi[idx]:.2f}. Spennubreyting: {spennubreyting:.2f} %")
+            # passa að spennufall verði ekki meira en 3.5% þegar spólan kemur inn þegar álag minnkar
+            while spennubreyting > 3.5:
+                q_shunt += 0.5
+                net.shunt.at[shunt_idx, 'q_mvar'] = q_shunt
+                
+                # new values
+                pp.runpp(net)
+                launafl[idx] = net.res_bus.loc[0, "q_mvar"]
+                cosphi[idx] = np.cos(np.arctan(launafl[idx] / i))
+                v6 = net.res_bus.vm_pu.at[bus6]
+                spennubreyting = (v6 - v6_pre) * 100
+
+            q_value = net.shunt.loc[net.shunt.bus == bus2, 'q_mvar'].values[0]
+            plt.plot(arr[last:idx], launafl[last:idx], marker='o', linestyle='-', color='blue')
+            plt.text(arr[last], launafl[last], f"  Spóla: {q_value_last:.1f} Mvar (P = {arr[last]} : {i} MW)", fontsize=10)
+            last = idx
+            print(f"Spólu breytt: {q_value:.1f} Mvar. Álag: {i} MW. Spenna: {v6:.2f} pu. cosφ: {cosphi[idx]:.2f}")
+
+        if i == 25 and last != idx:
+            q_value = net.shunt.loc[net.shunt.bus == bus_shunt, 'q_mvar'].values[0]
+            plt.plot(arr[last:idx+1], launafl[last:idx+1], marker='o', linestyle='-', color='blue')
+            plt.text(arr[last], launafl[last], f"  Spóla: {q_value_last:.1f} Mvar (P = {arr[last]} : {i} MW)", fontsize=10)
+
+    min_cosphi = np.min(cosphi)
+    print(f"Minnsta gildi cosφ: {min_cosphi:.2f}")
+
+    # Mark points where cos(phi) < 0.9
+    mask = cosphi < 0.9
+    plt.scatter(arr[mask], launafl[mask], color='red', s=80)
+
+    plt.title('Launafl sem þarf að útjafna sem fall af raunhluta álags')
+    plt.xlabel('Raunaflshluti álags (P_MW)')
+    plt.ylabel('Launafl (Q_Mvar)')
+    plt.minorticks_on()
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.tight_layout()
+    plt.show()
 
 
-min_cosphi = np.min(cosphi)
-#print(f"Gildi á cosphi frá 0 MW - 25 MW: {cosphi}")
-print(f"Minnsta gildi cosphi: {min_cosphi:.4f}")
-
-plt.figure(figsize=(8, 5))
-plt.plot(arr, launafl, marker='o', linestyle='-', color='blue', label='launafl')
-
-# Mark points where cos(phi) < 0.9
-mask = cosphi < 0.9
-plt.scatter(arr[mask], launafl[mask], color='red', s=80, label='cos(ϕ) < 0.9')
-
-plt.title('Launafl sem þarf að útjafna sem fall af raunhluta álags')
-plt.xlabel('Raunaflshluti álags (P_MW)')
-plt.ylabel('Launafl (Q_Mvar)')
-plt.minorticks_on()
-plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-
+plot_reactive_power_shunt_sizing(net, bus6, bus2, pf=0.95)
+#plot_reactive_power_vs_active_load(net, bus6, pf=0.95)
 
 # Create switches
 #sw1 = pp.create_switch(net, bus1, pp.get_element_index(net, "trafo", '132/66 kV Transformer'), et="t", type="LBS", closed=True)
