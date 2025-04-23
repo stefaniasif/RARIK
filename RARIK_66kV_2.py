@@ -323,7 +323,7 @@ def plot_reactive_power_shunt_sizing(net, bus_load, bus_shunt, pf=0.95):
             plt.plot(arr[last:idx], launafl[last:idx], marker='o', linestyle='-', color='blue')
             plt.text(arr[last], launafl[last], f"  Spóla: {q_value_last:.1f} Mvar (P = {arr[last]} : {i} MW)", fontsize=10)
             last = idx
-            print(f"Spólu breytt: {q_value:.1f} Mvar. Álag: {i} MW. Spenna: {v6:.2f} pu. cosφ: {cosphi[idx]:.2f}")
+            print(f"Spólu breytt: {q_value:.1f} Mvar. Álag: {i} MW. Spenna: {v6:.2f} pu. cosφ: {cosphi[idx]:.2f}. Spennubreyting: {spennubreyting:.1f} %")
 
         if i == 25 and last != idx:
             q_value = net.shunt.loc[net.shunt.bus == bus_shunt, 'q_mvar'].values[0]
