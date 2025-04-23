@@ -361,40 +361,43 @@ active_lines = net.res_line[net.line['in_service'] == True]
 
 # Calculate line current and loading for active lines
 print("Line current and loading for active lines (kA, %):")
-print(active_lines[['i_ka', 'loading_percent']])
+formatted = active_lines[['i_ka', 'loading_percent']].copy()
+formatted['i_ka'] = formatted['i_ka'].round(2)
+formatted['loading_percent'] = formatted['loading_percent'].round(0).astype(int).astype(str) + '%'
+print(formatted)
 
 # Real power absorbed or created in each active line
 active_line_losses = active_lines['p_from_mw'] + active_lines['p_to_mw']
-print("Line Losses for Active Lines (MW):")
-print(active_line_losses)
+#print("Line Losses for Active Lines (MW):")
+#print(active_line_losses)
 
 # Total real power absorbed or created in the lines
 total_line_power = active_line_losses.sum()
-print(f"Total Power Loss in Active Lines: {total_line_power:.4f} MW")
+print(f"Total Power Loss in Active Lines: {total_line_power:.2f} MW")
 
 # Reactive power absorbed or created in each active line
 active_line_reactive_losses = active_lines['q_from_mvar'] + active_lines['q_to_mvar']
-print("Reactive power in Active Lines (MVAR):")
-print(active_line_reactive_losses)
+#print("Reactive power in Active Lines (MVAR):")
+#print(active_line_reactive_losses)
 
 # Total reactive power absorbed or created in the lines
 total_reactive_power = active_line_reactive_losses.sum()
-print(f"Total Reactive Power in Lines: {total_reactive_power:.4f} MVAR")
+print(f"Total Reactive Power in Lines: {total_reactive_power:.2f} MVAR")
 
 # Calculate transformer real power losses
 if not net.trafo.empty:
     trafo_losses = net.res_trafo['p_hv_mw'] + net.res_trafo['p_lv_mw']
     print("Transformer Losses (MW):")
-    print(trafo_losses)
+    print(trafo_losses.round(2))
 
 
 # Total real power system losses
 total_losses = active_line_losses.sum() + trafo_losses.sum()
-print(f"Total Real Power System Losses: {total_losses:.4f} MW")
+print(f"Total Real Power System Losses: {total_losses:.2f} MW")
 
 
 print("Bus Voltages:")
-print(net.res_bus.vm_pu)
+print(net.res_bus.vm_pu.round(2))
 
 print("Fletta upp til að sjá spólustærðir")
 
